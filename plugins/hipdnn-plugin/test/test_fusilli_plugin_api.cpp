@@ -230,7 +230,7 @@ TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
   ASSERT_EQ(hipdnnEnginePluginCreate(&handle), HIPDNN_PLUGIN_STATUS_SUCCESS);
   ASSERT_NE(handle, nullptr);
 
-  // Create a serialized hipDNN bach norm graph.
+  // Create a serialized hipDNN batch norm graph.
   auto builder = hipdnn_sdk::test_utilities::createValidBatchnormBwdGraph();
   hipdnnPluginConstData_t opGraph;
   opGraph.ptr = builder.GetBufferPointer();
