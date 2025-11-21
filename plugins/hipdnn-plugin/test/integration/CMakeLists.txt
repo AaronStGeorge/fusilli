@@ -32,3 +32,8 @@ gtest_discover_tests(fusilli_plugin_integration_tests
       ENVIRONMENT "FUSILLI_LOG_INFO=1"
       ENVIRONMENT "FUSILLI_LOG_FILE=stdout"
 )
+
+# Install test executable
+install(TARGETS fusilli_plugin_integration_tests
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)

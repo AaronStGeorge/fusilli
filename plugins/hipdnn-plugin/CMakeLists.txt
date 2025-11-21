@@ -11,6 +11,9 @@ project(fusilli-plugin
   DESCRIPTION "Fusilli-Plugin: A Fusilli/IREE powered hipDNN plugin for graph JIT compilation."
   LANGUAGES C CXX)
 
+# Include GNUInstallDirs for standard install directories
+include(GNUInstallDirs)
+
 # Set C++ standard
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 20)
@@ -70,6 +73,11 @@ target_compile_definitions(${FUSILLI_PLUGIN_NAME} PRIVATE
 set_target_properties(${FUSILLI_PLUGIN_NAME} PROPERTIES
     CXX_VISIBILITY_PRESET hidden
     LIBRARY_OUTPUT_DIRECTORY "${FUSILLI_PLUGIN_DIR}"
+)
+
+# Installation
+install(TARGETS ${FUSILLI_PLUGIN_NAME}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/hipdnn_plugins/engines
 )
 
 # Tests
