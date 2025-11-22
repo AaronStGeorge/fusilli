@@ -57,7 +57,6 @@ include(FusilliTestUtils)
 #
 # The dependency on IREECompiler is through the CLI tool (`iree-compile`) which is easily
 # accessible from binary releases so a source build is not necessary here.
-fusilli_find_program(iree-compile "Please install IREE compiler binary (e.g., pip install iree-base-compiler).")
 find_package(IREERuntime REQUIRED)
 
 # Transitive deps for IREERuntime
@@ -65,13 +64,6 @@ find_package(Threads REQUIRED)
 
 # Defines variables CMAKE_INSTALL_<dir> for common install locations.
 include(GNUInstallDirs)
-
-# Create external_tools.h.inc
-configure_file(
-  ${CMAKE_CURRENT_SOURCE_DIR}/templates/external_tools.h.in
-  ${CMAKE_CURRENT_BINARY_DIR}/include/fusilli/support/external_tools.h.inc
-  @ONLY
-)
 
 # Create header-only library.
 add_library(libfusilli INTERFACE)
@@ -88,7 +80,6 @@ add_library(fusilli::fusilli ALIAS libfusilli)
 # available in the installed/exported package.
 file(GLOB_RECURSE FUSILLI_HEADERS
   ${CMAKE_CURRENT_SOURCE_DIR}/include/*.h
-  ${CMAKE_CURRENT_BINARY_DIR}/include/*.h.inc
 )
 target_sources(libfusilli INTERFACE
   FILE_SET fusilli_headers TYPE HEADERS # file sets require lowercase name
@@ -119,7 +110,7 @@ endif()
 
 # Enable after test/samples to avoid catch2 errors.
 if(FUSILLI_ENABLE_CLANG_TIDY)
-  fusilli_find_program(clang-tidy "Please install clang-tidy (e.g., apt install clang-tidy).")
+  fusilli_find_program(clang-tidy INSTALL_INSTRUCTIONS "Please install clang-tidy (e.g., apt install clang-tidy).")
   set(CMAKE_CXX_CLANG_TIDY
     clang-tidy;
     -warnings-as-errors=*;

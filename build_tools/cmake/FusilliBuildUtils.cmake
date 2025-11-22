@@ -5,26 +5,47 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 
-# Usage: fusilli_find_program(TOOL_NAME [EXTRA_ERROR_MESSAGE])
+# Find an external tool needed for the fusilli build, and create an imported
+# executable target for said tool.
+#
+# Usage:
+#   fusilli_find_program(<tool-name> [REQUIRED] [INSTALL_INSTRUCTIONS <message>])
+#
+# fusilli_find_program first checks the FUSILLI_EXTERNAL_<TOOL_NAME> cache
+# variable (with <tool-name> converted to ALL CAPS and hyphens replaced with
+# underscores), then falls back to find_program.
+#
+# Options:
+#   INSTALL_INSTRUCTIONS - Instructions to install tool if not found
 macro(fusilli_find_program TOOL_NAME)
-  # Parse optional extra error message.
-  set(_EXTRA_ERROR_MSG "")
-  if(${ARGC} GREATER 1)
-    set(_EXTRA_ERROR_MSG "${ARGV1}")
-  endif()
+  cmake_parse_arguments(
+    ARG                     # prefix
+    ""                      # options
+    "INSTALL_INSTRUCTIONS"  # one value keywords
+    ""                      # multi-value keywords
+    ${ARGN}                 # extra arguments
+  )
 
-  # Replace hyphens in tool name with underscores. Cache variables can be set
-  # through the shell, where hyphens are invalid in variable names.
+  # Replace hyphens in tool name with underscores and convert to uppercase.
+  # Cache variables can be set through the shell, where hyphens are invalid in
+  # variable names.
   string(REPLACE "-" "_" _TOOL_VAR_NAME "${TOOL_NAME}")
+  # Yes, TOUPPER argument order is - in fact - the opposite of REPLACE.
+  #   string(REPLACE <match> <replace> <output_variable> <input>)
+  #   string(TOUPPER <input> <output_variable>)
+  string(TOUPPER "${_TOOL_VAR_NAME}" _TOOL_VAR_NAME)
   set(_FULL_VAR_NAME "FUSILLI_EXTERNAL_${_TOOL_VAR_NAME}")
 
   # Find the tool if not already set.
   if(NOT ${_FULL_VAR_NAME})
     find_program(${_FULL_VAR_NAME} NAMES ${TOOL_NAME})
+    # find_program will only set ${_FULL_VAR_NAME} if the program was found.
     if(NOT ${_FULL_VAR_NAME})
-      message(FATAL_ERROR "Could not find '${TOOL_NAME}' in PATH. ${_EXTRA_ERROR_MSG}")
+      message(FATAL_ERROR "Could not find '${TOOL_NAME}' in PATH. ${ARG_ERROR_MESSAGE}")
     endif()
   endif()
+
+  # Create an imported executable for the tool
   message(STATUS "Using ${TOOL_NAME}: ${${_FULL_VAR_NAME}}")
   add_executable(${TOOL_NAME} IMPORTED GLOBAL)
   set_target_properties(${TOOL_NAME} PROPERTIES IMPORTED_LOCATION "${${_FULL_VAR_NAME}}")

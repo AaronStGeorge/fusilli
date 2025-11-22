@@ -5,13 +5,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 # Find lit program
-fusilli_find_program(lit "Please install lit (e.g., pip install lit).")
+fusilli_find_program(lit INSTALL_INSTRUCTIONS "Please install lit (e.g., pip install lit).")
 
 # Find iree-opt program
-fusilli_find_program(iree-opt "Please install iree-opt (e.g., pip install iree-base-compiler).")
+fusilli_find_program(iree-opt INSTALL_INSTRUCTIONS "Please install iree-opt (e.g., pip install iree-base-compiler).")
+
+# Find iree-compile program
+fusilli_find_program(iree-compile INSTALL_INSTRUCTIONS "Please install iree-compile (e.g., pip install iree-base-compiler).")
 
 # Find FileCheck program
-fusilli_find_program(FileCheck "Please install FileCheck.")
+fusilli_find_program(FileCheck INSTALL_INSTRUCTIONS "Please install FileCheck.")
 
 # Enable HIP tests if AMD GPU is enabled (ensures GPU detected) and HIP is found
 if(FUSILLI_SYSTEMS_AMDGPU)
