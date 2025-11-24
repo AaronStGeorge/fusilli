@@ -109,7 +109,7 @@ testConvAsmEmitterXNhwcWKrscWithPad(const std::string &mode) {
   }
 
   if (mode == "stats") {
-#ifdef FUSILLI_ENABLE_AMDGPU
+#ifdef FUSILLI_BUILD_AMDGPU_TESTS
     Handle handle = FUSILLI_TRY(Handle::create(Backend::AMDGPU));
 #else
     Handle handle = FUSILLI_TRY(Handle::create(Backend::CPU));

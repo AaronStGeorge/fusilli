@@ -64,7 +64,7 @@ TEST_CASE(
     handlePtr = std::make_shared<Handle>(
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU)));
   }
-#ifdef FUSILLI_ENABLE_AMDGPU
+#ifdef FUSILLI_BUILD_AMDGPU_TESTS
   SECTION("amdgpu backend") {
     handlePtr = std::make_shared<Handle>(
         FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU)));

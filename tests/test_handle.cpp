@@ -23,7 +23,7 @@ TEST_CASE("Single Handle creation", "[handle]") {
   SECTION("CPU handle") {
     Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
   }
-#ifdef FUSILLI_ENABLE_AMDGPU
+#ifdef FUSILLI_BUILD_AMDGPU_TESTS
   SECTION("GPU handle") {
     Handle handle = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
   }
@@ -39,7 +39,7 @@ TEST_CASE("Single Handle creation", "[handle]") {
 
 TEST_CASE("Multiple Handle creation", "[handle]") {
   Handle handle1 = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::CPU));
-#ifdef FUSILLI_ENABLE_AMDGPU
+#ifdef FUSILLI_BUILD_AMDGPU_TESTS
   Handle handle2 = FUSILLI_REQUIRE_UNWRAP(Handle::create(Backend::AMDGPU));
 #endif
 }
