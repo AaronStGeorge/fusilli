@@ -118,23 +118,24 @@ if(FUSILLI_ENABLE_CLANG_TIDY)
   )
 endif()
 
-
 # Option for AMDGPU backend
-option(FUSILLI_SYSTEMS_AMDGPU "Builds for AMD GPU systems" ON)
-message(STATUS "Fusilli supported systems:")
-if(FUSILLI_SYSTEMS_AMDGPU)
+option(FUSILLI_DEV_PLATFORM_AMDGPU  "Build developer artifacts (tests, benchmarks, samples) for AMD GPU systems" ON)
+
+# List build targets
+message(STATUS "Building Fusilli tests, samples, and benchmarks for:")
+if(FUSILLI_DEV_PLATFORM_AMDGPU)
   message(STATUS "  - AMD GPU")
 endif()
 message(STATUS "  - Host")
 
-# Enable AMD GPU samples and tests if GPU is detected
-if(FUSILLI_SYSTEMS_AMDGPU)
+# Enable AMD GPU samples, tests, and benchmarks if GPU is detected
+if(FUSILLI_DEV_PLATFORM_AMDGPU)
   # Check for Linux AMD GPU device node - `/dev/kfd`
   if(EXISTS "/dev/kfd")
     message(STATUS "AMD GPU detected: Enabling GPU samples and tests")
     add_definitions(-DFUSILLI_ENABLE_AMDGPU)
   else()
-    message(FATAL_ERROR "FUSILLI_SYSTEMS_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
+    message(FATAL_ERROR "FUSILLI_DEV_PLATFORM_AMDGPU is ON but `/dev/kfd` not found: No AMD GPU detected on this system.")
   endif()
 endif()
 
