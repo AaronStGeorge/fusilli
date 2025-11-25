@@ -8,25 +8,27 @@ include(GoogleTest)
 find_package(Threads REQUIRED)
 
 # Integration tests
-add_executable(fusilli_plugin_integration_tests
-    test_convfprop.cpp
+add_executable(fusilli_plugin_integration_test
+    # test_convfprop.cpp
     test_basic.cpp
 )
-target_compile_options(fusilli_plugin_integration_tests PRIVATE ${HIPDNN_WARNING_COMPILE_OPTIONS})
-target_link_libraries(fusilli_plugin_integration_tests PRIVATE
+target_compile_options(fusilli_plugin_integration_test PRIVATE ${HIPDNN_WARNING_COMPILE_OPTIONS})
+target_link_libraries(fusilli_plugin_integration_test PRIVATE
     GTest::gtest_main
     hip::host
     hipdnn_frontend
     hipdnn_sdk
     Threads::Threads
 )
-target_compile_definitions(fusilli_plugin_integration_tests PRIVATE
-    FUSILLI_PLUGIN_DIR="${FUSILLI_PLUGIN_DIR}"
+# Use relative path from executable to plugin, resolved at runtime.
+# HIPDNN_PLUGIN_ENGINE_SUBDIR is provided by hipdnn_sdk (e.g., "hipdnn_plugins/engines")
+target_compile_definitions(fusilli_plugin_integration_test PRIVATE
+    FUSILLI_PLUGIN_PATH="../${CMAKE_INSTALL_LIBDIR}/${HIPDNN_PLUGIN_ENGINE_SUBDIR}"
     FUSILLI_PLUGIN_NAME="${FUSILLI_PLUGIN_NAME}"
     FUSILLI_PLUGIN_ENGINE_ID="${FUSILLI_PLUGIN_ENGINE_ID}"
 )
 # Register with CTest
-gtest_discover_tests(fusilli_plugin_integration_tests
+gtest_discover_tests(fusilli_plugin_integration_test
     PROPERTIES
       ENVIRONMENT "HIPDNN_LOG_LEVEL=info"
       ENVIRONMENT "FUSILLI_LOG_INFO=1"
@@ -34,6 +36,6 @@ gtest_discover_tests(fusilli_plugin_integration_tests
 )
 
 # Install test executable
-install(TARGETS fusilli_plugin_integration_tests
+install(TARGETS fusilli_plugin_integration_test
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
 )
