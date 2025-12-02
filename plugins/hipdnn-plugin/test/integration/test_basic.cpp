@@ -50,12 +50,15 @@ static std::vector<std::string> getLoadedPlugins(hipdnnHandle_t handle) {
 }
 
 TEST(IntegrationTests, PluginLoad) {
-  // Resolve plugin path relative to executable directory.
-  // FUSILLI_PLUGIN_PATH is e.g. "../lib/hipdnn_plugins/engines/fusilli_plugin"
+  // Set plugin paths.
+  //
+  // FUSILLI_PLUGIN_PATH is a relative from to executable directory where this
+  // test lives e.g. "../lib/hipdnn_plugins/engines/fusilli_plugin". It needs to
+  // be relative as the tests will be installed (and therefore located) in some
+  // build configurations (`TheRock` for example).
   auto pluginPath = std::filesystem::weakly_canonical(
       getCurrentExecutableDirectory() / FUSILLI_PLUGIN_PATH);
-  const std::string pluginPathStr = pluginPath.string();
-  const std::array<const char *, 1> paths = {pluginPathStr.c_str()};
+  const std::array<const char *, 1> paths = {pluginPath.c_str()};
   hipdnnStatus_t status = hipdnnSetEnginePluginPaths_ext(
       paths.size(), paths.data(), HIPDNN_PLUGIN_LOADING_ABSOLUTE);
   EXPECT_EQ(status, HIPDNN_STATUS_SUCCESS);
