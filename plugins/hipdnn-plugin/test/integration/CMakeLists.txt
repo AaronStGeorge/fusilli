@@ -9,7 +9,7 @@ find_package(Threads REQUIRED)
 
 # Integration tests
 add_executable(fusilli_plugin_integration_test
-    # test_convfprop.cpp
+    test_convfprop.cpp
     test_basic.cpp
 )
 target_compile_options(fusilli_plugin_integration_test PRIVATE ${HIPDNN_WARNING_COMPILE_OPTIONS})
@@ -21,9 +21,8 @@ target_link_libraries(fusilli_plugin_integration_test PRIVATE
     Threads::Threads
 )
 # Use relative path from executable to plugin, resolved at runtime.
-# HIPDNN_PLUGIN_ENGINE_SUBDIR is provided by hipdnn_sdk (e.g., "hipdnn_plugins/engines")
 target_compile_definitions(fusilli_plugin_integration_test PRIVATE
-    FUSILLI_PLUGIN_PATH="../${CMAKE_INSTALL_LIBDIR}/${HIPDNN_PLUGIN_ENGINE_SUBDIR}"
+    FUSILLI_PLUGIN_PATH="../${FUSILLI_PLUGIN_RELATIVE_PATH}"
     FUSILLI_PLUGIN_NAME="${FUSILLI_PLUGIN_NAME}"
     FUSILLI_PLUGIN_ENGINE_ID="${FUSILLI_PLUGIN_ENGINE_ID}"
 )

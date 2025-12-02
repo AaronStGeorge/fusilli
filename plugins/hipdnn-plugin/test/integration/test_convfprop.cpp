@@ -53,8 +53,15 @@ TEST_P(ConvFpropIntegrationTest, Basic1x1Convolution) {
     ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
   }
 
-  // Set plugin path.
-  const std::array<const char *, 1> paths = {FUSILLI_PLUGIN_DIR};
+  // Set plugin paths.
+  //
+  // FUSILLI_PLUGIN_PATH is a relative from to executable directory where this
+  // test lives e.g. "../lib/hipdnn_plugins/engines/fusilli_plugin". It needs to
+  // be relative as the tests will be installed (and therefore located) in some
+  // build configurations (`TheRock` for example).
+  auto pluginPath = std::filesystem::weakly_canonical(
+      getCurrentExecutableDirectory() / FUSILLI_PLUGIN_PATH);
+  const std::array<const char *, 1> paths = {pluginPath.c_str()};
   ASSERT_EQ(hipdnnSetEnginePluginPaths_ext(paths.size(), paths.data(),
                                            HIPDNN_PLUGIN_LOADING_ABSOLUTE),
             HIPDNN_STATUS_SUCCESS);
