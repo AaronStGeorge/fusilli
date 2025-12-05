@@ -4,7 +4,7 @@
 # See https://llvm.org/LICENSE.txt for license information.
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-cmake_minimum_required(VERSION 3.23)
+cmake_minimum_required(VERSION 3.24)
 
 project(fusilli-plugin
   VERSION 0.1.0
@@ -45,24 +45,29 @@ set(IREE_HIP_TEST_TARGET_CHIP "" CACHE STRING "Enable ROCm testing on specific a
 
 if(IREE_SOURCE_DIR)
   message(STATUS "Using existing IREE sources: ${IREE_SOURCE_DIR}")
-  add_subdirectory(${IREE_SOURCE_DIR} fusilli_plugin_iree SYSTEM EXCLUDE_FROM_ALL)
+  FetchContent_Declare(
+    IREERuntime
+    SOURCE_DIR ${IREE_SOURCE_DIR}
+    # Fusilli Config file includes find_dependency(IREERuntime), ensure that
+    # find_package(IREERuntime) redirects to this version.
+    OVERRIDE_FIND_PACKAGE
+    SYSTEM
+  )
 else()
   message(STATUS "Fetching IREE sources from tag ${IREE_GIT_TAG}")
   set(IREE_SUBMODULES "third_party/benchmark third_party/flatcc third_party/hip-build-deps")
   FetchContent_Declare(
-    fusilli_plugin_iree
+    IREERuntime
     GIT_REPOSITORY https://github.com/iree-org/iree.git
     GIT_TAG "${IREE_GIT_TAG}"
     GIT_SUBMODULES ${IREE_SUBMODULES}
     GIT_SHALLOW TRUE
+    OVERRIDE_FIND_PACKAGE
     SYSTEM
-    EXCLUDE_FROM_ALL
   )
-  FetchContent_GetProperties(fusilli_plugin_iree)
-  if(NOT fusilli_plugin_iree_POPULATED)
-    FetchContent_MakeAvailable(fusilli_plugin_iree)
-  endif()
 endif()
+
+FetchContent_MakeAvailable(IREERuntime)
 
 # Other dependencies
 find_package(hipdnn_sdk CONFIG REQUIRED)
