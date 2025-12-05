@@ -180,6 +180,7 @@ if(FUSILLI_SYSTEMS_AMDGPU)
   # Check for Linux AMD GPU device node - `/dev/kfd`
   if(EXISTS "/dev/kfd")
     message(STATUS "AMD GPU detected: Enabling AMD GPU build")
+    target_compile_definitions(libfusilli INTERFACE FUSILLI_ENABLE_AMDGPU)
   else()
     message(WARNING "No AMD GPU detected (`/dev/kfd` not found) but FUSILLI_SYSTEMS_AMDGPU is set; Only proceed if cross-compiling for AMD GPU systems.")
   endif()

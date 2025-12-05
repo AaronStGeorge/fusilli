@@ -43,8 +43,6 @@ set(IREE_HAL_DRIVER_DEFAULTS OFF)
 set(IREE_HAL_DRIVER_HIP ON)
 set(IREE_HIP_TEST_TARGET_CHIP "" CACHE STRING "Enable ROCm testing on specific architecture (e.g. gfx942)")
 
-message(STATUS "TACO")
-
 if(IREE_SOURCE_DIR)
   message(STATUS "Using existing IREE sources: ${IREE_SOURCE_DIR}")
   add_subdirectory(${IREE_SOURCE_DIR} fusilli_plugin_iree SYSTEM EXCLUDE_FROM_ALL)
