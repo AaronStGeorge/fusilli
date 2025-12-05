@@ -13,6 +13,7 @@ project(fusilli-plugin
 
 # Include GNUInstallDirs for standard install directories
 include(GNUInstallDirs)
+include(FetchContent)
 
 # Set C++ standard
 set(CMAKE_C_STANDARD 11)
@@ -23,7 +24,49 @@ set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 # Dependencies
 set(HIP_PLATFORM "amd")
 find_package(hip CONFIG REQUIRED)
-find_package(IREERuntime CONFIG REQUIRED)
+
+################################################################################
+# IREE Runtime Dependency
+# Build from source, same pattern as fusilli/CMakeLists.txt
+################################################################################
+
+set(IREE_GIT_TAG "iree-3.10.0rc20251201")
+set(IREE_SOURCE_DIR "" CACHE FILEPATH "Path to IREE source")
+
+# Set IREE build flags
+set(IREE_VISIBILITY_HIDDEN OFF)
+set(IREE_BUILD_COMPILER OFF)
+set(IREE_BUILD_TESTS OFF)
+set(IREE_BUILD_SAMPLES OFF)
+set(IREE_ERROR_ON_MISSING_SUBMODULES OFF)
+set(IREE_HAL_DRIVER_DEFAULTS OFF)
+set(IREE_HAL_DRIVER_HIP ON)
+set(IREE_HIP_TEST_TARGET_CHIP "" CACHE STRING "Enable ROCm testing on specific architecture (e.g. gfx942)")
+
+message(STATUS "TACO")
+
+if(IREE_SOURCE_DIR)
+  message(STATUS "Using existing IREE sources: ${IREE_SOURCE_DIR}")
+  add_subdirectory(${IREE_SOURCE_DIR} fusilli_plugin_iree SYSTEM EXCLUDE_FROM_ALL)
+else()
+  message(STATUS "Fetching IREE sources from tag ${IREE_GIT_TAG}")
+  set(IREE_SUBMODULES "third_party/benchmark third_party/flatcc third_party/hip-build-deps")
+  FetchContent_Declare(
+    fusilli_plugin_iree
+    GIT_REPOSITORY https://github.com/iree-org/iree.git
+    GIT_TAG "${IREE_GIT_TAG}"
+    GIT_SUBMODULES ${IREE_SUBMODULES}
+    GIT_SHALLOW TRUE
+    SYSTEM
+    EXCLUDE_FROM_ALL
+  )
+  FetchContent_GetProperties(fusilli_plugin_iree)
+  if(NOT fusilli_plugin_iree_POPULATED)
+    FetchContent_MakeAvailable(fusilli_plugin_iree)
+  endif()
+endif()
+
+# Other dependencies
 find_package(hipdnn_sdk CONFIG REQUIRED)
 find_package(hipdnn_frontend CONFIG REQUIRED)
 find_package(Fusilli CONFIG REQUIRED)
