@@ -6,10 +6,13 @@
 
 #include <gtest/gtest.h>
 #include <hipdnn_frontend/Graph.hpp>
+#include <hipdnn_sdk/utilities/PlatformUtils.hpp>
 
 #include <algorithm>
 #include <filesystem>
 #include <string>
+
+using hipdnn_sdk::utilities::getCurrentExecutableDirectory;
 
 static std::vector<std::string> getLoadedPlugins(hipdnnHandle_t handle) {
   size_t numPlugins = 0;
@@ -47,11 +50,15 @@ static std::vector<std::string> getLoadedPlugins(hipdnnHandle_t handle) {
 }
 
 TEST(IntegrationTests, PluginLoad) {
-  // Uncomment if you want debug logging info.
-  // setenv("HIPDNN_LOG_LEVEL", "info", 1);
-
-  // Ensure hipDNN will load fusilli plugin.
-  const std::array<const char *, 1> paths = {FUSILLI_PLUGIN_DIR};
+  // Set plugin paths.
+  //
+  // FUSILLI_PLUGIN_PATH is a relative from to executable directory where this
+  // test lives e.g. "../lib/hipdnn_plugins/engines/fusilli_plugin". It needs to
+  // be relative as the tests will be installed (and therefore located) in some
+  // build configurations (`TheRock` for example).
+  auto pluginPath = std::filesystem::weakly_canonical(
+      getCurrentExecutableDirectory() / FUSILLI_PLUGIN_PATH);
+  const std::array<const char *, 1> paths = {pluginPath.c_str()};
   hipdnnStatus_t status = hipdnnSetEnginePluginPaths_ext(
       paths.size(), paths.data(), HIPDNN_PLUGIN_LOADING_ABSOLUTE);
   EXPECT_EQ(status, HIPDNN_STATUS_SUCCESS);
@@ -67,11 +74,12 @@ TEST(IntegrationTests, PluginLoad) {
   EXPECT_EQ(loadedPlugins.size(), 1);
 
   // Check that fusilli plugin did load.
-  auto expectedPath = std::filesystem::path(FUSILLI_PLUGIN_DIR) /
-                      std::format("lib{}.so", FUSILLI_PLUGIN_NAME);
+  auto expectedPath =
+      pluginPath / std::format("lib{}.so", FUSILLI_PLUGIN_NAME);
   EXPECT_TRUE(std::ranges::any_of(
       loadedPlugins, [&expectedPath](const std::string &loadedPluginPath) {
-        return std::filesystem::canonical(loadedPluginPath) == expectedPath;
+        return std::filesystem::canonical(loadedPluginPath) ==
+               std::filesystem::canonical(expectedPath);
       }));
 
   EXPECT_EQ(hipdnnDestroy(handle), HIPDNN_STATUS_SUCCESS);
