@@ -29,8 +29,10 @@ set(FUSILLI_PLUGIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/${HIPDNN_PLUGIN_ENGINE_S
 set(HIP_PLATFORM "amd")
 
 # IREE Runtime Dependency - build from source, same pattern as fusilli/CMakeLists.txt
-set(IREE_SOURCE_DIR "" CACHE FILEPATH "Path to IREE source")
-
+if(NOT IREE_SOURCE_DIR)
+  message(FATAL_ERROR "IREE_SOURCE_DIR must be provided. Set -DIREE_SOURCE_DIR=<path> to the IREE source directory.")
+endif()
+message(STATUS "Using existing IREE sources: ${IREE_SOURCE_DIR}")
 # Set IREE build flags
 set(IREE_VISIBILITY_HIDDEN OFF)
 set(IREE_BUILD_COMPILER OFF)
@@ -40,33 +42,15 @@ set(IREE_ERROR_ON_MISSING_SUBMODULES OFF)
 set(IREE_HAL_DRIVER_DEFAULTS OFF)
 set(IREE_HAL_DRIVER_HIP ON)
 set(IREE_HIP_TEST_TARGET_CHIP "" CACHE STRING "")
-
-if(IREE_SOURCE_DIR)
-  message(STATUS "Using existing IREE sources: ${IREE_SOURCE_DIR}")
-  FetchContent_Declare(
-    IREERuntime
-    SOURCE_DIR ${IREE_SOURCE_DIR}
-    # Fusilli Config file includes find_dependency(IREERuntime), ensure that
-    # find_package(IREERuntime) redirects to this version.
-    OVERRIDE_FIND_PACKAGE
-    SYSTEM
-  )
-else()
-  set(IREE_GIT_TAG "iree-3.10.0rc20251201")
-  message(STATUS "Fetching IREE sources from tag ${IREE_GIT_TAG}")
-
-  set(IREE_SUBMODULES "third_party/benchmark third_party/flatcc third_party/hip-build-deps")
-  FetchContent_Declare(
-    IREERuntime
-    GIT_REPOSITORY https://github.com/iree-org/iree.git
-    GIT_TAG "${IREE_GIT_TAG}"
-    GIT_SUBMODULES ${IREE_SUBMODULES}
-    GIT_SHALLOW TRUE
-    OVERRIDE_FIND_PACKAGE
-    SYSTEM
-  )
-endif()
-
+# Build IREERuntime as part of plugin
+FetchContent_Declare(
+  IREERuntime
+  SOURCE_DIR ${IREE_SOURCE_DIR}
+  # Fusilli Config file includes find_dependency(IREERuntime), ensure that
+  # find_package(IREERuntime) redirects to this version.
+  OVERRIDE_FIND_PACKAGE
+  SYSTEM
+)
 FetchContent_MakeAvailable(IREERuntime)
 
 # Other dependencies
