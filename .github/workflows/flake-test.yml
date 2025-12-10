@@ -8,7 +8,6 @@ name: Flake test - fusilli
 
 on:
   workflow_dispatch:
-  pull_request:
   push:
     branches:
       - main
@@ -97,7 +96,7 @@ jobs:
       if: ${{ matrix.name != 'cpu_gcc13_codecov' }}
       run: |
         build_tools/docker/exec_docker_ci.sh \
-        bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 -j \$(nproc) && \
+        bash -c "ctest --test-dir build --output-on-failure --extra-verbose --timeout 120 -j 8 && \
                  tests/test_cache_empty.sh"
 
   # Depends on all other jobs to provide an aggregate job status.
