@@ -18,15 +18,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 
 # CMake includes
+include(GNUInstallDirs)
 include(FetchContent)
-
-# Global constants
-set(FUSILLI_PLUGIN_NAME fusilli_plugin)
-set(FUSILLI_PLUGIN_ENGINE_ID 1001)
-set(FUSILLI_PLUGIN_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib/${HIPDNN_PLUGIN_ENGINE_SUBDIR}")
-# Global flag required for hip package, indicates that hip should target AMD
-# platform.
-set(HIP_PLATFORM "amd")
 
 # IREE Runtime Dependency - build from source, same pattern as fusilli/CMakeLists.txt
 if(NOT IREE_SOURCE_DIR)
@@ -63,6 +56,13 @@ find_package(hipdnn_frontend CONFIG REQUIRED)
 find_package(Fusilli CONFIG REQUIRED)
 find_package(GTest CONFIG REQUIRED)
 
+# Global constants
+set(FUSILLI_PLUGIN_NAME fusilli_plugin)
+set(FUSILLI_PLUGIN_ENGINE_ID 1001)
+# Relative path from build/install prefix to plugin location.
+# HIPDNN_PLUGIN_ENGINE_SUBDIR is provided by hipdnn_sdk.
+set(FUSILLI_PLUGIN_RELATIVE_PATH "${CMAKE_INSTALL_LIBDIR}/${HIPDNN_PLUGIN_ENGINE_SUBDIR}")
+
 # Useful compile warnings
 list(PREPEND FUSILLI_PLUGIN_WARNING_COMPILE_OPTIONS
     -Werror                                  # Treat all warnings as errors
@@ -91,7 +91,7 @@ include_directories(include)
 
 # Plugin definition
 add_library(${FUSILLI_PLUGIN_NAME} SHARED
-    src/fusilli_plugin.cpp
+  src/fusilli_plugin.cpp
 )
 target_compile_options(${FUSILLI_PLUGIN_NAME} PRIVATE ${FUSILLI_PLUGIN_WARNING_COMPILE_OPTIONS})
 target_link_libraries(${FUSILLI_PLUGIN_NAME} PRIVATE hipdnn_sdk hip::host fusilli::fusilli)
@@ -99,9 +99,19 @@ target_compile_definitions(${FUSILLI_PLUGIN_NAME} PRIVATE
   FUSILLI_PLUGIN_NAME="${FUSILLI_PLUGIN_NAME}"
   FUSILLI_PLUGIN_ENGINE_ID=${FUSILLI_PLUGIN_ENGINE_ID}
 )
+target_link_libraries(
+    ${FUSILLI_PLUGIN_NAME} PRIVATE "-Xlinker --exclude-libs=ALL"
+) # Hide symbols from linked static libs
 set_target_properties(${FUSILLI_PLUGIN_NAME} PROPERTIES
-    CXX_VISIBILITY_PRESET hidden
-    LIBRARY_OUTPUT_DIRECTORY "${FUSILLI_PLUGIN_DIR}"
+  C_VISIBILITY_PRESET hidden
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  LIBRARY_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/${FUSILLI_PLUGIN_RELATIVE_PATH}"
+)
+
+# Installation
+install(TARGETS ${FUSILLI_PLUGIN_NAME}
+  LIBRARY DESTINATION "${FUSILLI_PLUGIN_RELATIVE_PATH}"
 )
 
 # Tests
