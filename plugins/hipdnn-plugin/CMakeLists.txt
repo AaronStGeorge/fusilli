@@ -99,6 +99,9 @@ target_compile_definitions(${FUSILLI_PLUGIN_NAME} PRIVATE
   FUSILLI_PLUGIN_NAME="${FUSILLI_PLUGIN_NAME}"
   FUSILLI_PLUGIN_ENGINE_ID=${FUSILLI_PLUGIN_ENGINE_ID}
 )
+target_link_libraries(
+    ${FUSILLI_PLUGIN_NAME} PRIVATE "-Xlinker --exclude-libs=ALL"
+) # Hide symbols from linked static libs
 set_target_properties(${FUSILLI_PLUGIN_NAME} PROPERTIES
   C_VISIBILITY_PRESET hidden
   CXX_VISIBILITY_PRESET hidden
