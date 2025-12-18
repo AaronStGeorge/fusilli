@@ -22,7 +22,7 @@ usage:
        and `install_rocm_from_artifacts.py` to install from artifacts built by
        TheRock. We use the more granular artifacts (used primarily by tests)
        rather than the monolithic tarball. The granular artifacts allow us to
-       install hip without ending up duplicate copies of fusilli-plugin -
+       install hip without ending up with duplicate copies of fusilli-plugin -
        ThePebble and TheRock both build one. The granular approach also allows
        us to compose final installed artifacts from multiple builds - we can use
        hip from an older build if there was a regression, and hipDNN from a
