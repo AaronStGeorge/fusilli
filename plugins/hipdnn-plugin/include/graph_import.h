@@ -17,6 +17,7 @@
 #include <fusilli.h>
 #include <hipdnn_plugin_sdk/PluginApiDataTypes.h>
 #include <hipdnn_sdk/data_objects/data_types_generated.h>
+#include <hipdnn_sdk/data_objects/pointwise_attributes_generated.h>
 #include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
 #include <hipdnn_sdk/plugin/flatbuffer_utilities/GraphWrapper.hpp>
 
@@ -50,6 +51,27 @@ hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
   }
 }
 
+// Convert from hipDNN PointwiseMode to fusilli PointwiseAttr::Mode.
+inline fusilli::ErrorOr<fusilli::PointwiseAttr::Mode>
+hipDnnPointwiseModeToFusilliMode(
+    hipdnn_sdk::data_objects::PointwiseMode hipdnnMode) {
+  switch (hipdnnMode) {
+  case hipdnn_sdk::data_objects::PointwiseMode::ADD:
+    return ok(fusilli::PointwiseAttr::Mode::ADD);
+  case hipdnn_sdk::data_objects::PointwiseMode::DIV:
+    return ok(fusilli::PointwiseAttr::Mode::DIV);
+  case hipdnn_sdk::data_objects::PointwiseMode::MUL:
+    return ok(fusilli::PointwiseAttr::Mode::MUL);
+  case hipdnn_sdk::data_objects::PointwiseMode::RELU_FWD:
+    return ok(fusilli::PointwiseAttr::Mode::RELU_FWD);
+  case hipdnn_sdk::data_objects::PointwiseMode::SUB:
+    return ok(fusilli::PointwiseAttr::Mode::SUB);
+  default:
+    return error(fusilli::ErrorCode::NotImplemented,
+                 "Unsupported pointwise mode.");
+  }
+}
+
 // Graph import is done through importGraph function, this class exists for
 // organization and is used by importGraph.
 //
@@ -59,9 +81,8 @@ hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
 // functions). Graph nodes are processed in topological order to ensure that
 // outputs of producer nodes are tracked and available for consuming nodes.
 //
-// NOTE: input hipDNN graph .node()s may not be in topological order. There's
-// plans for a topological sort method but that's not available yet. As we're
-// only handling single-node graphs currently, that's not a problem.
+// NOTE: inputs should already be topologically sorted, hipDNN's
+// Graph::validate() includes a topological sort.
 class GraphImport {
 private:
   friend fusilli::ErrorOr<HipdnnEnginePluginExecutionContext>
@@ -74,13 +95,13 @@ private:
   // (inputs and outputs). Used by hipdnnEnginePluginExecuteOpGraph to match
   // incoming device buffers (identified by UID) to their corresponding
   // fusilli::TensorAttr.
-  //
-  // All tensors in this map should be non-virtual boundary tensors---a virtual
-  // tensor is an internal intermediate---internal tensors will be tracked
-  // elsewhere. Currently we only support single node graphs, so there are no
-  // virtual tensors to track.
   std::unordered_map<int64_t, std::shared_ptr<fusilli::TensorAttr>>
       uidToIOTensor;
+
+  // Maps hipDNN tensor UIDs to fusilli::TensorAttrs for intermediate (virtual)
+  // tensors. These are outputs of one node that serve as inputs to another.
+  std::unordered_map<int64_t, std::shared_ptr<fusilli::TensorAttr>>
+      uidToVirtualTensor;
 
   // Helper class for reading from flatbuffer.
   hipdnn_plugin_sdk::GraphWrapper opGraphWrapper;
@@ -106,9 +127,6 @@ private:
 
   // Import all graph nodes.
   fusilli::ErrorObject importNodes() {
-    if (opGraphWrapper.nodeCount() > 1)
-      return fusilli::error(fusilli::ErrorCode::NotImplemented,
-                            "Multi-node graphs not supported currently.");
     for (uint32_t i = 0; i < opGraphWrapper.nodeCount(); ++i) {
       const hipdnn_sdk::data_objects::Node &node = opGraphWrapper.getNode(i);
       FUSILLI_CHECK_ERROR(importNode(node));
@@ -123,6 +141,10 @@ private:
     case hipdnn_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes:
       FUSILLI_CHECK_ERROR(
           importConvFPropAttr(node.attributes_as_ConvolutionFwdAttributes()));
+      break;
+    case hipdnn_sdk::data_objects::NodeAttributes::PointwiseAttributes:
+      FUSILLI_CHECK_ERROR(
+          importPointwiseAttr(node.attributes_as_PointwiseAttributes()));
       break;
     default:
       return fusilli::error(fusilli::ErrorCode::NotImplemented,
@@ -151,14 +173,57 @@ private:
         fusilli::ConvFPropAttr()
             .setPadding(*hipDnnConvFwdAttr->post_padding())
             .setStride(*hipDnnConvFwdAttr->stride())
-            .setDilation(*hipDnnConvFwdAttr->dilation())
-            .setName("conv_fprop");
+            .setDilation(*hipDnnConvFwdAttr->dilation());
     std::shared_ptr<fusilli::TensorAttr> y =
         fusilliGraph.convFProp(x, w, fusilliConvFwdAttr);
 
     // Import node output.
     FUSILLI_CHECK_ERROR(
         importNodeOutput(hipDnnConvFwdAttr->y_tensor_uid(), "y", y));
+
+    return fusilli::ok();
+  }
+
+  fusilli::ErrorObject importPointwiseAttr(
+      const hipdnn_sdk::data_objects::PointwiseAttributes *hipDnnPwAttr) {
+    // Get mode and determine input count.
+    fusilli::PointwiseAttr::Mode mode = FUSILLI_TRY(
+        hipDnnPointwiseModeToFusilliMode(hipDnnPwAttr->operation()));
+    int requiredInputs =
+        fusilli::PointwiseAttr::kModeToRequiredInputCount.at(mode);
+
+    // Import first input (always present).
+    std::shared_ptr<fusilli::TensorAttr> in0 =
+        FUSILLI_TRY(importNodeInput(hipDnnPwAttr->in_0_tensor_uid(), "in0"));
+
+    // Build fusilli pointwise node.
+    std::shared_ptr<fusilli::TensorAttr> out;
+    auto fusilliPwAttr = fusilli::PointwiseAttr().setMode(mode);
+
+    switch (requiredInputs) {
+    case 1:
+      // Unary op (e.g., RELU_FWD).
+      out = fusilliGraph.pointwise(in0, fusilliPwAttr);
+      break;
+    case 2: {
+      // Binary op (e.g., ADD, MUL, SUB, DIV).
+      auto in1Uid = hipDnnPwAttr->in_1_tensor_uid();
+      if (!in1Uid.has_value())
+        return fusilli::error(fusilli::ErrorCode::AttributeNotSet,
+                              "Binary pointwise op missing second input.");
+      std::shared_ptr<fusilli::TensorAttr> in1 =
+          FUSILLI_TRY(importNodeInput(in1Uid.value(), "in1"));
+      out = fusilliGraph.pointwise(in0, in1, fusilliPwAttr);
+      break;
+    }
+    default:
+      return fusilli::error(fusilli::ErrorCode::RuntimeFailure,
+                            "Unexpected number of inputs to pointwise op.");
+    }
+
+    // Import node output.
+    FUSILLI_CHECK_ERROR(
+        importNodeOutput(hipDnnPwAttr->out_0_tensor_uid(), "out0", out));
 
     return fusilli::ok();
   }
@@ -172,12 +237,14 @@ private:
     const hipdnn_sdk::data_objects::TensorAttributes *hipDnnTensorAttr =
         opGraphWrapper.getTensorMap().at(uid);
 
-    // A virtual node indicates a non-boundary node.
+    // A virtual tensor indicates an intermediate (non-boundary) tensor.
     if (hipDnnTensorAttr->virtual_()) {
-      // When multi-op graphs are supported, we would look up the output of a
-      // previously imported node and return it here.
-      return fusilli::error(fusilli::ErrorCode::NotImplemented,
-                            "Virtual inputs currently unsupported.");
+      // Look up the output of a previously imported node.
+      if (!uidToVirtualTensor.contains(uid))
+        return fusilli::error(fusilli::ErrorCode::RuntimeFailure,
+                              "Virtual tensor not found - graph may not be "
+                              "topologically sorted.");
+      return ok(uidToVirtualTensor.at(uid));
     }
 
     // Import new tensor.
@@ -206,17 +273,19 @@ private:
     nodeOutput->setName(std::format("{}_{}", name, uid)); // C++ 20
     FUSILLI_CHECK_ERROR(importAttrs(*nodeOutput, hipDnnTensorAttr));
 
-    // A virtual node indicates a non-boundary node.
+    // A virtual tensor indicates an intermediate (non-boundary) tensor.
     if (hipDnnTensorAttr->virtual_()) {
-      // This tensor is an input to nodes farther down the topological sort.
-      // When multi-op graphs are supported, we would track UID -> node output
-      // tensor in a non-IO tensor map.
-      return fusilli::error(fusilli::ErrorCode::NotImplemented,
-                            "Virtual outputs currently unsupported. An output "
-                            "tensor may have not been marked as an output.");
+      // Check for duplicate UIDs.
+      if (uidToVirtualTensor.contains(uid))
+        return fusilli::error(
+            fusilli::ErrorCode::RuntimeFailure,
+            "Duplicate virtual tensor UID - UIDs must be unique.");
+      // Track for use by downstream nodes.
+      uidToVirtualTensor[uid] = nodeOutput;
+      return fusilli::ok();
     }
 
-    // Track boundary node.
+    // Track boundary tensor.
     uidToIOTensor[uid] = nodeOutput;
 
     return fusilli::ok();

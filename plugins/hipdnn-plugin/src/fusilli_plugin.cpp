@@ -221,21 +221,21 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
-  // Check for single conv_fprop node graph
+  // Check for conv_fprop graph (optionally with pointwise ops)
   GraphWrapper opGraphWrapper(opGraph->ptr, opGraph->size);
-  if (opGraphWrapper.nodeCount() != 1) {
-    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
-                    "for single node conv_fprop graphs.",
-                    opGraphWrapper.nodeCount());
-    return HIPDNN_PLUGIN_STATUS_SUCCESS;
-  }
   if (!opGraphWrapper.hasOnlySupportedAttributes(
           std::set<hipdnn_sdk::data_objects::NodeAttributes>{
               hipdnn_sdk::data_objects::NodeAttributes::
-                  ConvolutionFwdAttributes})) {
-    HIPDNN_LOG_INFO("Fusilli plan builder is (currently) only applicable only "
-                    "for single node conv_fprop graphs.",
-                    opGraphWrapper.nodeCount());
+                  ConvolutionFwdAttributes,
+              hipdnn_sdk::data_objects::NodeAttributes::PointwiseAttributes})) {
+    HIPDNN_LOG_INFO("Fusilli only supports conv_fprop and pointwise nodes");
+    return HIPDNN_PLUGIN_STATUS_SUCCESS;
+  }
+  // Verify node 0 is conv (remaining nodes verified as pointwise by above
+  // check)
+  if (opGraphWrapper.getNode(0).attributes_type() !=
+      hipdnn_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes) {
+    HIPDNN_LOG_INFO("Fusilli requires first node to be conv_fprop");
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
