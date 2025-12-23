@@ -18,18 +18,18 @@
 #include <flatbuffers/vector.h>
 #include <fusilli.h>
 #include <hip/hip_runtime.h>
+#include <hipdnn_data_sdk/data_objects/data_types_generated.h>
+#include <hipdnn_data_sdk/data_objects/engine_details_generated.h>
+#include <hipdnn_data_sdk/data_objects/graph_generated.h>
+#include <hipdnn_data_sdk/data_objects/tensor_attributes_generated.h>
+#include <hipdnn_data_sdk/flatbuffer_utilities/EngineConfigWrapper.hpp>
+#include <hipdnn_data_sdk/flatbuffer_utilities/FlatbufferTypeHelpers.hpp>
+#include <hipdnn_data_sdk/flatbuffer_utilities/GraphWrapper.hpp>
+#include <hipdnn_data_sdk/logging/Logger.hpp>
 #include <hipdnn_plugin_sdk/EnginePluginApi.h>
 #include <hipdnn_plugin_sdk/PluginApi.h>
 #include <hipdnn_plugin_sdk/PluginApiDataTypes.h>
 #include <hipdnn_plugin_sdk/PluginHelpers.hpp>
-#include <hipdnn_sdk/data_objects/data_types_generated.h>
-#include <hipdnn_sdk/data_objects/engine_details_generated.h>
-#include <hipdnn_sdk/data_objects/graph_generated.h>
-#include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
-#include <hipdnn_sdk/logging/Logger.hpp>
-#include <hipdnn_sdk/plugin/flatbuffer_utilities/EngineConfigWrapper.hpp>
-#include <hipdnn_sdk/plugin/flatbuffer_utilities/FlatbufferTypeHelpers.hpp>
-#include <hipdnn_sdk/plugin/flatbuffer_utilities/GraphWrapper.hpp>
 #include <iree/hal/buffer.h>
 #include <iree/hal/buffer_view.h>
 
@@ -224,23 +224,24 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetApplicableEngineIds(
   // Check for conv_fprop graph (optionally with pointwise ops)
   GraphWrapper opGraphWrapper(opGraph->ptr, opGraph->size);
   if (!opGraphWrapper.hasOnlySupportedAttributes(
-          std::set<hipdnn_sdk::data_objects::NodeAttributes>{
-              hipdnn_sdk::data_objects::NodeAttributes::
+          std::set<hipdnn_data_sdk::data_objects::NodeAttributes>{
+              hipdnn_data_sdk::data_objects::NodeAttributes::
                   ConvolutionFwdAttributes,
-              hipdnn_sdk::data_objects::NodeAttributes::PointwiseAttributes})) {
+              hipdnn_data_sdk::data_objects::NodeAttributes::
+                  PointwiseAttributes})) {
     HIPDNN_LOG_INFO("Fusilli only supports conv_fprop and pointwise nodes");
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
   // Verify node 0 is conv (remaining nodes verified as pointwise by above
   // check)
   if (opGraphWrapper.getNode(0).attributes_type() !=
-      hipdnn_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes) {
+      hipdnn_data_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes) {
     HIPDNN_LOG_INFO("Fusilli requires first node to be conv_fprop");
     return HIPDNN_PLUGIN_STATUS_SUCCESS;
   }
 
   // Check single conv_fprop node for symmetric padding
-  const hipdnn_sdk::data_objects::ConvolutionFwdAttributes *convFwdAttrs =
+  const hipdnn_data_sdk::data_objects::ConvolutionFwdAttributes *convFwdAttrs =
       opGraphWrapper.getNode(0).attributes_as_ConvolutionFwdAttributes();
   // pre/post_padding are flatbuffer::vectors (not std::vectors) and don't
   // override ==, so we use std::ranges::equal for structural vs referential
@@ -314,7 +315,7 @@ hipdnnEnginePluginGetEngineDetails(hipdnnEnginePluginHandle_t handle,
   // being.
   flatbuffers::FlatBufferBuilder builder;
   auto engineDetailsObj =
-      hipdnn_sdk::data_objects::CreateEngineDetails(builder, engineId);
+      hipdnn_data_sdk::data_objects::CreateEngineDetails(builder, engineId);
   builder.Finish(engineDetailsObj);
 
   // Populate out parameter.

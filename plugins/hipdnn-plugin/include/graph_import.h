@@ -15,11 +15,11 @@
 #define FUSILLI_PLUGIN_SRC_GRAPH_IMPORT_H
 
 #include <fusilli.h>
+#include <hipdnn_data_sdk/data_objects/data_types_generated.h>
+#include <hipdnn_data_sdk/data_objects/pointwise_attributes_generated.h>
+#include <hipdnn_data_sdk/data_objects/tensor_attributes_generated.h>
+#include <hipdnn_data_sdk/flatbuffer_utilities/GraphWrapper.hpp>
 #include <hipdnn_plugin_sdk/PluginApiDataTypes.h>
-#include <hipdnn_sdk/data_objects/data_types_generated.h>
-#include <hipdnn_sdk/data_objects/pointwise_attributes_generated.h>
-#include <hipdnn_sdk/data_objects/tensor_attributes_generated.h>
-#include <hipdnn_sdk/plugin/flatbuffer_utilities/GraphWrapper.hpp>
 
 #include <format>
 #include <memory>
@@ -28,22 +28,22 @@
 #include "hipdnn_engine_plugin_execution_context.h"
 
 // Convert from hipDNN DataType to fusilli DataType.
-inline fusilli::ErrorOr<fusilli::DataType>
-hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
+inline fusilli::ErrorOr<fusilli::DataType> hipDnnDataTypeToFusilliDataType(
+    hipdnn_data_sdk::data_objects::DataType hipdnnType) {
   switch (hipdnnType) {
-  case hipdnn_sdk::data_objects::DataType::HALF:
+  case hipdnn_data_sdk::data_objects::DataType::HALF:
     return ok(fusilli::DataType::Half);
-  case hipdnn_sdk::data_objects::DataType::BFLOAT16:
+  case hipdnn_data_sdk::data_objects::DataType::BFLOAT16:
     return ok(fusilli::DataType::BFloat16);
-  case hipdnn_sdk::data_objects::DataType::FLOAT:
+  case hipdnn_data_sdk::data_objects::DataType::FLOAT:
     return ok(fusilli::DataType::Float);
-  case hipdnn_sdk::data_objects::DataType::DOUBLE:
+  case hipdnn_data_sdk::data_objects::DataType::DOUBLE:
     return ok(fusilli::DataType::Double);
-  case hipdnn_sdk::data_objects::DataType::UINT8:
+  case hipdnn_data_sdk::data_objects::DataType::UINT8:
     return ok(fusilli::DataType::Uint8);
-  case hipdnn_sdk::data_objects::DataType::INT32:
+  case hipdnn_data_sdk::data_objects::DataType::INT32:
     return ok(fusilli::DataType::Int32);
-  case hipdnn_sdk::data_objects::DataType::UNSET:
+  case hipdnn_data_sdk::data_objects::DataType::UNSET:
     return ok(fusilli::DataType::NotSet);
   default:
     return error(fusilli::ErrorCode::RuntimeFailure,
@@ -54,17 +54,17 @@ hipDnnDataTypeToFusilliDataType(hipdnn_sdk::data_objects::DataType hipdnnType) {
 // Convert from hipDNN PointwiseMode to fusilli PointwiseAttr::Mode.
 inline fusilli::ErrorOr<fusilli::PointwiseAttr::Mode>
 hipDnnPointwiseModeToFusilliMode(
-    hipdnn_sdk::data_objects::PointwiseMode hipdnnMode) {
+    hipdnn_data_sdk::data_objects::PointwiseMode hipdnnMode) {
   switch (hipdnnMode) {
-  case hipdnn_sdk::data_objects::PointwiseMode::ADD:
+  case hipdnn_data_sdk::data_objects::PointwiseMode::ADD:
     return ok(fusilli::PointwiseAttr::Mode::ADD);
-  case hipdnn_sdk::data_objects::PointwiseMode::DIV:
+  case hipdnn_data_sdk::data_objects::PointwiseMode::DIV:
     return ok(fusilli::PointwiseAttr::Mode::DIV);
-  case hipdnn_sdk::data_objects::PointwiseMode::MUL:
+  case hipdnn_data_sdk::data_objects::PointwiseMode::MUL:
     return ok(fusilli::PointwiseAttr::Mode::MUL);
-  case hipdnn_sdk::data_objects::PointwiseMode::RELU_FWD:
+  case hipdnn_data_sdk::data_objects::PointwiseMode::RELU_FWD:
     return ok(fusilli::PointwiseAttr::Mode::RELU_FWD);
-  case hipdnn_sdk::data_objects::PointwiseMode::SUB:
+  case hipdnn_data_sdk::data_objects::PointwiseMode::SUB:
     return ok(fusilli::PointwiseAttr::Mode::SUB);
   default:
     return error(fusilli::ErrorCode::NotImplemented,
@@ -110,7 +110,7 @@ private:
       : opGraphWrapper(opGraph->ptr, opGraph->size) {}
 
   fusilli::ErrorObject importGraph() {
-    const hipdnn_sdk::data_objects::Graph &hipDnnGraph =
+    const hipdnn_data_sdk::data_objects::Graph &hipDnnGraph =
         opGraphWrapper.getGraph();
 
     // Import graph level properties.
@@ -128,7 +128,8 @@ private:
   // Import all graph nodes.
   fusilli::ErrorObject importNodes() {
     for (uint32_t i = 0; i < opGraphWrapper.nodeCount(); ++i) {
-      const hipdnn_sdk::data_objects::Node &node = opGraphWrapper.getNode(i);
+      const hipdnn_data_sdk::data_objects::Node &node =
+          opGraphWrapper.getNode(i);
       FUSILLI_CHECK_ERROR(importNode(node));
     }
 
@@ -136,13 +137,15 @@ private:
   }
 
   // Import single graph node.
-  fusilli::ErrorObject importNode(const hipdnn_sdk::data_objects::Node &node) {
+  fusilli::ErrorObject
+  importNode(const hipdnn_data_sdk::data_objects::Node &node) {
     switch (node.attributes_type()) {
-    case hipdnn_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes:
+    case hipdnn_data_sdk::data_objects::NodeAttributes::
+        ConvolutionFwdAttributes:
       FUSILLI_CHECK_ERROR(
           importConvFPropAttr(node.attributes_as_ConvolutionFwdAttributes()));
       break;
-    case hipdnn_sdk::data_objects::NodeAttributes::PointwiseAttributes:
+    case hipdnn_data_sdk::data_objects::NodeAttributes::PointwiseAttributes:
       FUSILLI_CHECK_ERROR(
           importPointwiseAttr(node.attributes_as_PointwiseAttributes()));
       break;
@@ -153,9 +156,9 @@ private:
     return fusilli::ok();
   }
 
-  fusilli::ErrorObject
-  importConvFPropAttr(const hipdnn_sdk::data_objects::ConvolutionFwdAttributes
-                          *hipDnnConvFwdAttr) {
+  fusilli::ErrorObject importConvFPropAttr(
+      const hipdnn_data_sdk::data_objects::ConvolutionFwdAttributes
+          *hipDnnConvFwdAttr) {
     // Import node inputs.
     std::shared_ptr<fusilli::TensorAttr> x =
         FUSILLI_TRY(importNodeInput(hipDnnConvFwdAttr->x_tensor_uid(), "x"));
@@ -185,7 +188,7 @@ private:
   }
 
   fusilli::ErrorObject importPointwiseAttr(
-      const hipdnn_sdk::data_objects::PointwiseAttributes *hipDnnPwAttr) {
+      const hipdnn_data_sdk::data_objects::PointwiseAttributes *hipDnnPwAttr) {
     // Get mode and determine input count.
     fusilli::PointwiseAttr::Mode mode = FUSILLI_TRY(
         hipDnnPointwiseModeToFusilliMode(hipDnnPwAttr->operation()));
@@ -234,7 +237,7 @@ private:
   importNodeInput(int64_t uid, const char *name) {
     // Get hipDNN tensor. TensorMap is created from the graph that uid variable
     // is read from, so .at() call should be safe.
-    const hipdnn_sdk::data_objects::TensorAttributes *hipDnnTensorAttr =
+    const hipdnn_data_sdk::data_objects::TensorAttributes *hipDnnTensorAttr =
         opGraphWrapper.getTensorMap().at(uid);
 
     // A virtual tensor indicates an intermediate (non-boundary) tensor.
@@ -266,7 +269,7 @@ private:
                    const std::shared_ptr<fusilli::TensorAttr> &nodeOutput) {
     // Get hipDNN tensor. TensorMap is created from the graph that uid variable
     // is read from, so .at() call should be safe.
-    const hipdnn_sdk::data_objects::TensorAttributes *hipDnnTensorAttr =
+    const hipdnn_data_sdk::data_objects::TensorAttributes *hipDnnTensorAttr =
         opGraphWrapper.getTensorMap().at(uid);
 
     // Import attrs.
@@ -294,7 +297,7 @@ private:
   // Import all tensor attrs src -> dest.
   fusilli::ErrorObject
   importAttrs(fusilli::TensorAttr &dest,
-              const hipdnn_sdk::data_objects::TensorAttributes *src) {
+              const hipdnn_data_sdk::data_objects::TensorAttributes *src) {
     dest.setIsVirtual(src->virtual_())
         .setDim(*src->dims())
         .setStride(*src->strides())

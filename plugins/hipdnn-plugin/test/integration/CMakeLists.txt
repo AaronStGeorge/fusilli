@@ -14,7 +14,7 @@ add_fusilli_plugin_test(
     GTest::gtest_main
     hip::host
     hipdnn_frontend
-    hipdnn_sdk
+    hipdnn_data_sdk
     hipdnn_test_sdk
     Threads::Threads
   COMPILE_DEFS
@@ -30,7 +30,7 @@ add_fusilli_plugin_test(
     GTest::gtest_main
     hip::host
     hipdnn_frontend
-    hipdnn_sdk
+    hipdnn_data_sdk
     hipdnn_test_sdk
     Threads::Threads
   COMPILE_DEFS
@@ -47,7 +47,7 @@ add_fusilli_plugin_test(
     hip::host
     hipdnn_frontend
     hipdnn_plugin_sdk
-    hipdnn_sdk
+    hipdnn_data_sdk
     hipdnn_test_sdk
     Threads::Threads
   COMPILE_DEFS
