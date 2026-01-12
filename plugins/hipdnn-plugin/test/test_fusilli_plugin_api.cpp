@@ -7,11 +7,9 @@
 #include <flatbuffers/flatbuffer_builder.h>
 #include <fusilli.h>
 #include <gtest/gtest.h>
-#include <hipdnn_data_sdk/data_objects/convolution_fwd_attributes_generated.h>
 #include <hipdnn_data_sdk/data_objects/data_types_generated.h>
 #include <hipdnn_data_sdk/data_objects/engine_config_generated.h>
-#include <hipdnn_data_sdk/data_objects/graph_generated.h>
-#include <hipdnn_data_sdk/data_objects/tensor_attributes_generated.h>
+#include <hipdnn_data_sdk/data_objects/pointwise_attributes_generated.h>
 #include <hipdnn_plugin_sdk/EnginePluginApi.h>
 #include <hipdnn_plugin_sdk/PluginApi.h>
 #include <hipdnn_test_sdk/utilities/FlatbufferGraphTestUtils.hpp>
@@ -173,59 +171,6 @@ TEST(TestFusilliPluginApi, GetAllEngineIdsNullNumEngines) {
   EXPECT_GT(strlen(errorStr), 0u);
 }
 
-// TODO(#2363): investigate using createValidConvFwdGraph from upstream hipDNN
-flatbuffers::FlatBufferBuilder
-createValidConvFwdGraph(int64_t xUID = 0, int64_t wUID = 1, int64_t yUID = 2,
-                        hipdnn_data_sdk::data_objects::DataType dataType =
-                            hipdnn_data_sdk::data_objects::DataType::FLOAT,
-                        const std::vector<int64_t> &xDims = {4, 4, 4, 4},
-                        const std::vector<int64_t> &xStrides = {64, 16, 4, 1},
-                        const std::vector<int64_t> &wDims = {4, 4, 1, 1},
-                        const std::vector<int64_t> &wStrides = {4, 1, 1, 1},
-                        const std::vector<int64_t> &yDims = {4, 4, 4, 4},
-                        const std::vector<int64_t> &yStrides = {64, 16, 4, 1},
-                        const std::vector<int64_t> &convPrePadding = {0, 0},
-                        const std::vector<int64_t> &convPostPadding = {0, 0},
-                        const std::vector<int64_t> &convStrides = {1, 1},
-                        const std::vector<int64_t> &convDilation = {1, 1}) {
-  flatbuffers::FlatBufferBuilder builder;
-  std::vector<
-      ::flatbuffers::Offset<hipdnn_data_sdk::data_objects::TensorAttributes>>
-      tensorAttributes;
-
-  tensorAttributes.push_back(CreateTensorAttributesDirect(
-      builder, xUID, "x", dataType, &xStrides, &xDims));
-
-  tensorAttributes.push_back(CreateTensorAttributesDirect(
-      builder, wUID, "w", dataType, &wStrides, &wDims));
-
-  tensorAttributes.push_back(CreateTensorAttributesDirect(
-      builder, yUID, "y", dataType, &yStrides, &yDims));
-
-  auto convAttributes = CreateConvolutionFwdAttributesDirect(
-      builder,
-      /*x_tensor_uid*/ xUID,
-      /*w_tensor_uid*/ wUID,
-      /*y_tensor_uid*/ yUID, &convPrePadding, &convPostPadding, &convStrides,
-      &convDilation,
-      hipdnn_data_sdk::data_objects::ConvMode::CROSS_CORRELATION);
-
-  std::vector<::flatbuffers::Offset<hipdnn_data_sdk::data_objects::Node>> nodes;
-  auto node = CreateNodeDirect(
-      builder, "conv_fwd", dataType,
-      hipdnn_data_sdk::data_objects::NodeAttributes::ConvolutionFwdAttributes,
-      convAttributes.Union());
-  nodes.push_back(node);
-
-  auto graphOffset =
-      CreateGraphDirect(builder, "test",
-                        /*compute_type*/ dataType,
-                        /*intermediate_type*/ dataType,
-                        /*io_type=*/dataType, &tensorAttributes, &nodes);
-  builder.Finish(graphOffset);
-  return builder;
-}
-
 TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
   // Create plugin handle.
   hipdnnEnginePluginHandle_t handle = nullptr;
@@ -249,7 +194,7 @@ TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
   ASSERT_EQ(numEngines, 0);
 
   // Create a serialized hipDNN conv_fprop graph with symmetric padding.
-  builder = createValidConvFwdGraph();
+  builder = hipdnn_test_sdk::utilities::createValidConvFwdGraph();
   opGraph.ptr = builder.GetBufferPointer();
   opGraph.size = builder.GetSize();
 
@@ -263,9 +208,7 @@ TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
   ASSERT_EQ(engineIDs[0], FUSILLI_PLUGIN_ENGINE_ID);
 
   // Create a serialized hipDNN conv_fprop graph with asymmetric padding.
-  builder = createValidConvFwdGraph(
-      /*xUID=*/0, /*wUID=*/1, /*yUID=*/2,
-      /*dataType=*/hipdnn_data_sdk::data_objects::DataType::FLOAT,
+  builder = hipdnn_test_sdk::utilities::createValidConvFwdGraph(
       /*xDims=*/{4, 4, 4, 4}, /*xStrides=*/{64, 16, 4, 1},
       /*wDims=*/{4, 4, 1, 1}, /*wStrides=*/{4, 1, 1, 1},
       /*yDims=*/{4, 4, 4, 4}, /*yStrides=*/{64, 16, 4, 1},
@@ -283,6 +226,90 @@ TEST(TestFusilliPluginApi, GetApplicableEngineIds) {
                 /*num_engines=*/&numEngines),
             HIPDNN_PLUGIN_STATUS_SUCCESS);
   ASSERT_EQ(numEngines, 0);
+}
+
+TEST(TestFusilliPluginApi, GetApplicableEngineIdsConvPointwise) {
+  // Create plugin handle.
+  hipdnnEnginePluginHandle_t handle = nullptr;
+  ASSERT_EQ(hipdnnEnginePluginCreate(&handle), HIPDNN_PLUGIN_STATUS_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+
+  std::array<int64_t, 5> engineIDs;
+  uint32_t numEngines = 0;
+
+  // Test conv + pointwise for various modes.
+  for (auto mode : {hipdnn_data_sdk::data_objects::PointwiseMode::ADD,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::DIV,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::MUL,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::RELU_FWD,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::SUB,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::SIGMOID_FWD,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::TANH_FWD,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::GELU_FWD,
+                    hipdnn_data_sdk::data_objects::PointwiseMode::ELU_FWD}) {
+    auto builder = hipdnn_test_sdk::utilities::createValidConvFwdActivGraph(
+        /*xDims=*/{4, 4, 4, 4}, /*xStrides=*/{64, 16, 4, 1},
+        /*wDims=*/{4, 4, 1, 1}, /*wStrides=*/{4, 1, 1, 1},
+        /*yDims=*/{4, 4, 4, 4}, /*yStrides=*/{64, 16, 4, 1},
+        /*convPrePadding=*/{0, 0}, /*convPostPadding=*/{0, 0},
+        /*convStrides=*/{1, 1}, /*convDilation=*/{1, 1},
+        /*activMode=*/mode);
+    hipdnnPluginConstData_t opGraph;
+    opGraph.ptr = builder.GetBufferPointer();
+    opGraph.size = builder.GetSize();
+
+    ASSERT_EQ(hipdnnEnginePluginGetApplicableEngineIds(
+                  handle, &opGraph, engineIDs.data(), 5, &numEngines),
+              HIPDNN_PLUGIN_STATUS_SUCCESS);
+
+    // If the translation (hipDNN -> fusilli) is supported, the graph should be
+    // supported.
+    bool modeSupported =
+        !fusilli::isError(hipDnnPointwiseModeToFusilliMode(mode));
+    uint32_t expectedEngines = modeSupported ? 1 : 0;
+    ASSERT_EQ(numEngines, expectedEngines);
+  }
+
+  EXPECT_EQ(hipdnnEnginePluginDestroy(handle), HIPDNN_PLUGIN_STATUS_SUCCESS);
+}
+
+TEST(TestFusilliPluginApi, GetApplicableEngineIdsConvBiasActiv) {
+  // Create plugin handle.
+  hipdnnEnginePluginHandle_t handle = nullptr;
+  ASSERT_EQ(hipdnnEnginePluginCreate(&handle), HIPDNN_PLUGIN_STATUS_SUCCESS);
+  ASSERT_NE(handle, nullptr);
+
+  std::array<int64_t, 5> engineIDs;
+  uint32_t numEngines = 0;
+
+  // Graph structure: conv -> bias (ADD) -> activation
+  for (auto activMode :
+       {hipdnn_data_sdk::data_objects::PointwiseMode::RELU_FWD,
+        hipdnn_data_sdk::data_objects::PointwiseMode::SIGMOID_FWD,
+        hipdnn_data_sdk::data_objects::PointwiseMode::TANH_FWD}) {
+    auto builder = hipdnn_test_sdk::utilities::createValidConvFwdBiasActivGraph(
+        /*xDims=*/{4, 4, 4, 4}, /*xStrides=*/{64, 16, 4, 1},
+        /*wDims=*/{4, 4, 1, 1}, /*wStrides=*/{4, 1, 1, 1},
+        /*yDims=*/{4, 4, 4, 4}, /*yStrides=*/{64, 16, 4, 1},
+        /*convPrePadding=*/{0, 0}, /*convPostPadding=*/{0, 0},
+        /*convStrides=*/{1, 1}, /*convDilation=*/{1, 1},
+        /*activMode=*/activMode);
+    hipdnnPluginConstData_t opGraph;
+    opGraph.ptr = builder.GetBufferPointer();
+    opGraph.size = builder.GetSize();
+
+    ASSERT_EQ(hipdnnEnginePluginGetApplicableEngineIds(
+                  handle, &opGraph, engineIDs.data(), 5, &numEngines),
+              HIPDNN_PLUGIN_STATUS_SUCCESS);
+
+    // Graph should be supported if translation for activation is supported.
+    bool activSupported =
+        !fusilli::isError(hipDnnPointwiseModeToFusilliMode(activMode));
+    uint32_t expectedEngines = activSupported ? 1 : 0;
+    ASSERT_EQ(numEngines, expectedEngines);
+  }
+
+  EXPECT_EQ(hipdnnEnginePluginDestroy(handle), HIPDNN_PLUGIN_STATUS_SUCCESS);
 }
 
 TEST(TestFusilliPluginApi, CreateExecutionContext) {
@@ -309,9 +336,12 @@ TEST(TestFusilliPluginApi, CreateExecutionContext) {
       FUSILLI_PLUGIN_EXPECT_UNWRAP(hipDnnDataTypeToFusilliDataType(dataType));
 
   // Create a serialized hipDNN conv_fprop.
-  auto builder = createValidConvFwdGraph(
-      xUID, wUID, yUID, dataType, expectedXDims, expectedXStrides,
-      expectedWDims, expectedWStrides, expectedYDims, expectedYStrides);
+  // Note: createValidConvFwdGraph uses hardcoded UIDs 1, 2, 3 for x, w, y
+  auto builder = hipdnn_test_sdk::utilities::createValidConvFwdGraph(
+      expectedXDims, expectedXStrides, expectedWDims, expectedWStrides,
+      expectedYDims, expectedYStrides, /*convPrePadding=*/{0, 0},
+      /*convPostPadding=*/{0, 0}, /*convStrides=*/{1, 1},
+      /*convDilation=*/{1, 1}, dataType);
   hipdnnPluginConstData_t opGraph;
   opGraph.ptr = builder.GetBufferPointer();
   opGraph.size = builder.GetSize();
