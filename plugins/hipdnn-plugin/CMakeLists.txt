@@ -97,6 +97,7 @@ list(PREPEND FUSILLI_PLUGIN_WARNING_COMPILE_OPTIONS
     -Wno-error=unused-command-line-argument  # Disable error for unused command line arguments
     -Wno-gnu-statement-expression            # Disable gnu error for statement expression, this will need to change on Windows.
     -Wswitch-default                         # Warn if a switch statement does not have a default case
+    -Wno-c2y-extensions                      # __COUNTER__ in logging macros is flagged as C2y extension by newer clang
 )
 
 # Includes
