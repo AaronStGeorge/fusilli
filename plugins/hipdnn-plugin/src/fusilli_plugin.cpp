@@ -351,10 +351,10 @@ hipdnnEnginePluginGetWorkspaceSize(hipdnnEnginePluginHandle_t handle,
   FUSILLI_PLUGIN_CHECK_NULL(opGraph);
   FUSILLI_PLUGIN_CHECK_NULL(workspaceSize);
 
-  // TODO(#2309): for now we're focusing on kernels that don't require scratch
-  // buffer space. Eventually we will need to teach IREE to report what scratch
-  // buffer space required, and how to use a passed in pre-allocated scratch
-  // space rather than a runtime allocated scratch space.
+  // TODO: Create a heuristic to estimate workspace size from the op graph
+  // without requiring full compilation. For now, return 0 — the actual
+  // workspace size will be reported by GetWorkspaceSizeFromExecutionContext
+  // after the graph is compiled.
   *workspaceSize = 0;
 
   LOG_API_SUCCESS_AUTO("workspaceSize=" << *workspaceSize);
@@ -439,11 +439,8 @@ hipdnnPluginStatus_t hipdnnEnginePluginGetWorkspaceSizeFromExecutionContext(
   FUSILLI_PLUGIN_CHECK_NULL(executionContext);
   FUSILLI_PLUGIN_CHECK_NULL(workspaceSize);
 
-  // TODO(#2309): for now we're focusing on kernels that don't require scratch
-  // buffer space. Eventually we will need to teach IREE to report what scratch
-  // buffer space required, and how to use a passed in pre-allocated scratch
-  // space rather than a runtime allocated scratch space.
-  *workspaceSize = 0;
+  auto ws = executionContext->graph.getWorkspaceSize();
+  *workspaceSize = ws.value_or(0);
 
   LOG_API_SUCCESS_AUTO("workspaceSize=" << *workspaceSize);
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
@@ -562,8 +559,62 @@ hipdnnPluginStatus_t hipdnnEnginePluginExecuteOpGraph(
     iree_hal_buffer_view_release(outBufferView);
   }
 
+  // Import workspace buffer if the compiled graph requires transient storage.
+  std::shared_ptr<fusilli::Buffer> workspaceBuffer = nullptr;
+  auto workspaceSize = executionContext->graph.getWorkspaceSize();
+  if (workspaceSize.value_or(0) > 0 && workspace == nullptr) {
+    return hipdnn_plugin_sdk::PluginLastErrorManager::setLastError(
+        HIPDNN_PLUGIN_STATUS_BAD_PARAM,
+        "Workspace of size " + std::to_string(*workspaceSize) +
+            " bytes required but workspace pointer is null");
+  }
+  if (workspaceSize.value_or(0) > 0 && workspace != nullptr) {
+    iree_hal_buffer_params_t wsBufferParams = {
+        .usage = IREE_HAL_BUFFER_USAGE_DEFAULT,
+        .access = IREE_HAL_MEMORY_ACCESS_ALL,
+        .type = IREE_HAL_MEMORY_TYPE_DEVICE_LOCAL,
+        .queue_affinity = IREE_HAL_QUEUE_AFFINITY_ANY,
+        .min_alignment = 0,
+    };
+    iree_hal_external_buffer_t externalWsBuffer = {
+        .type = IREE_HAL_EXTERNAL_BUFFER_TYPE_DEVICE_ALLOCATION,
+        .flags = 0,
+        .size = static_cast<iree_device_size_t>(*workspaceSize),
+        .handle =
+            {
+                .device_allocation =
+                    {
+                        .ptr = reinterpret_cast<uint64_t>(workspace),
+                    },
+            },
+    };
+    iree_hal_buffer_t *importedWsBuffer = nullptr;
+    FUSILLI_PLUGIN_CHECK_ERROR(iree_hal_allocator_import_buffer(
+        deviceAllocator, wsBufferParams, &externalWsBuffer,
+        iree_hal_buffer_release_callback_null(), &importedWsBuffer));
+
+    iree_hal_buffer_view_t *wsBufferView = nullptr;
+    iree_hal_dim_t wsShape[] = {
+        static_cast<iree_hal_dim_t>(*workspaceSize)};
+    FUSILLI_PLUGIN_CHECK_ERROR(iree_hal_buffer_view_create(
+        /*buffer=*/importedWsBuffer,
+        /*shape_rank=*/1,
+        /*shape=*/wsShape,
+        /*element_type=*/IREE_HAL_ELEMENT_TYPE_INT_8,
+        /*encoding_type=*/IREE_HAL_ENCODING_TYPE_DENSE_ROW_MAJOR,
+        /*host_allocator=*/ireeHostAllocator,
+        /*out_buffer_view=*/&wsBufferView));
+    iree_hal_buffer_release(importedWsBuffer);
+
+    FUSILLI_PLUGIN_ASSIGN_OR_RETURN(auto wsBuf,
+                                    fusilli::Buffer::import(wsBufferView));
+    workspaceBuffer =
+        std::make_shared<fusilli::Buffer>(std::move(wsBuf));
+    iree_hal_buffer_view_release(wsBufferView);
+  }
+
   FUSILLI_PLUGIN_CHECK_ERROR(executionContext->graph.execute(
-      fusilliHandle, variantPack, /*workspace=*/nullptr));
+      fusilliHandle, variantPack, workspaceBuffer));
 
   LOG_API_SUCCESS_AUTO("executed graph");
   return HIPDNN_PLUGIN_STATUS_SUCCESS;
